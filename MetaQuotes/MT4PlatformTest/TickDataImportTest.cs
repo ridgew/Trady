@@ -15,8 +15,9 @@ namespace MT4PlatformTest
         {
             // Use case
             var importer = new TickDataFileImporter("TickData", "(?<symbol>[\\w]+)_Tick_(?<date>\\d{4}.\\d{2}.\\d{2})(?<ext>.dat)");
-            var candle = importer.ImportAsync("XAUUSD", DateTime.Parse("2018-10-11 00:00:00").Date,
-                DateTime.Parse("2018-10-11 23:59:59").Date,
+            var candle = importer.ImportAsync("XAUUSD",
+                   DateTime.Parse("2018-10-11 00:00:00").Date,
+                   DateTime.Parse("2018-10-11 23:59:59").Date,
                 PeriodOption.PerMinute)
                 .Result.First();
             Assert.AreEqual(candle.Open, 1194.58m);
