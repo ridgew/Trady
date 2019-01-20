@@ -67,6 +67,10 @@
       <Project>{a6def916-0f19-427a-a82f-ab40789c6e74}</Project>
       <Name>Trady.Core</Name>
     </ProjectReference>
+    <ProjectReference Include="..\FixEAStrategy\FixEAStrategy.csproj">
+      <Project>{8407236f-1fa6-4d45-a74d-cc9ee6e74639}</Project>
+      <Name>FixEAStrategy</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

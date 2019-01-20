@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using Trady.Core.Period;
 using ZeroMQ;
+using FixEAStrategy;
 
 namespace MT4ZmqSingal
 {

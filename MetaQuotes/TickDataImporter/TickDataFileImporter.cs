@@ -9,6 +9,7 @@ using Trady.Core.Infrastructure;
 using Trady.Core.Period;
 using System.IO;
 using Trady.Core;
+using FixEAStrategy;
 
 namespace TickDataImporter
 {
@@ -77,7 +78,7 @@ namespace TickDataImporter
                              RateInfo:
 
                                 iLongVal = fs.ReadLong(ref bufBytes); //time_msc (8)
-                                nTickTime = Pack.ToDateTime(iLongVal);
+                                nTickTime = iLongVal.ToDateTime();
                                 iIntVer = fs.ReadInt(ref bufBytes);   //tTick    (4)
                                 /*
                                     The GetTickCount() function returns the number of milliseconds that elapsed since the system start.
