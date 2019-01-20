@@ -8,5 +8,10 @@ namespace Trady.Core.Period
 
         public override bool IsTimestamp(DateTimeOffset dateTime)
             => dateTime.Millisecond == 0 && dateTime.Second == 0;
+
+        public override string ToString()
+        {
+            return "M1";
+        }
     }
 }
