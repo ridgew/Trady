@@ -10,7 +10,7 @@ using Trady.Core.Period;
 
 namespace MT4ZmqSingal
 {
-
+    [DebuggerDisplay("Period:{Period} Total:{TotalCandle()}")]
     public class ZmqCandle : IEnumerable<IOhlcv>
     {
         public ZmqCandle(string symbol, PeriodBase period)
@@ -20,7 +20,7 @@ namespace MT4ZmqSingal
         }
 
         string _symbol = null;
-        Queue<IOhlcv> myCandleQue = new Queue<IOhlcv>();
+        LimitedQueue<IOhlcv> myCandleQue = new LimitedQueue<IOhlcv>(65535);
 
         public string Symbol()
         {
@@ -41,44 +41,200 @@ namespace MT4ZmqSingal
 
         public void NewTickData(DateTimeOffset tickTime, decimal bid, decimal ask, decimal lastVolume)
         {
-            MT4Candle candle = new MT4Candle(tickTime, bid, bid, ask, bid, 0);
-            if (myCandleQue.Count() < 1)
+            MT4Candle last = null;
+            bool isExistsCandle = ExistsQueueCandle(tickTime, ref last);
+            if (!isExistsCandle)
             {
+                MT4Candle candle = new MT4Candle(FixedCandleStartTime(tickTime), bid, bid, ask, bid, 0);
                 myCandleQue.Enqueue(candle);
             }
             else
             {
-                var last = (MT4Candle)myCandleQue.Last();
                 TickRate tick = new TickRate { Ask = ask, Bid = bid, TickTime = tickTime.DateTime, Volume = lastVolume };
-                if (Period is IntradayPeriodBase)
+                last.MerginTickData(tick);
+            }
+        }
+
+        public Tuple<DateTimeOffset, DateTimeOffset> TimeRange()
+        {
+            if (myCandleQue.Count() > 0)
+                return new Tuple<DateTimeOffset, DateTimeOffset>(myCandleQue.First().DateTime, myCandleQue.Last().DateTime);
+
+            return new Tuple<DateTimeOffset, DateTimeOffset>(new DateTimeOffset(), new DateTimeOffset());
+        }
+
+        DateTimeOffset FixedCandleStartTime(DateTimeOffset tickTime)
+        {
+            if (Period is IntradayPeriodBase)
+            {
+                #region IntradayPeriod
+                var truePeriod = (IntradayPeriodBase)Period;
+                if (truePeriod.NumberOfSecond >= 2 * 60 * 60)
                 {
-                    #region IntradayPeriod
-                    IntradayPeriodBase truePeriod = (IntradayPeriodBase)Period;
-                    if (truePeriod.NumberOfSecond >= 60)
+                    #region H2
+                    //01 03 05
+                    #endregion
+                }
+                else if (truePeriod.NumberOfSecond >= 60 * 60)
+                {
+                    #region H1
+                    return new DateTimeOffset(tickTime.DateTime.ClearMinutes(), tickTime.Offset);
+                    #endregion
+                }
+                else if (truePeriod.NumberOfSecond >= 30 * 60)
+                {
+                    #region 30分钟
+                    //0-29 30-59
+                    int offset = tickTime.DateTime.Minute % 30;
+                    if (offset == 0)
                     {
-                        if (last.DateTime.DateTime.ClearSeconds() == tickTime.DateTime.ClearSeconds())
-                        {
-                            last.MerginTickData(tick);
-                        }
-                        else
-                        {
-                            myCandleQue.Enqueue(candle);
-                        }
+                        return new DateTimeOffset(tickTime.DateTime.ClearSeconds(), tickTime.Offset);
                     }
-                    else if (truePeriod.NumberOfSecond >= 1 && truePeriod.NumberOfSecond < 60)
+                    else
                     {
-                        if (last.DateTime.DateTime.TrimSeconds() == tickTime.DateTime.TrimSeconds())
-                        {
-                            last.MerginTickData(tick);
-                        }
-                        else
-                        {
-                            myCandleQue.Enqueue(candle);
-                        }
+                        return new DateTimeOffset(tickTime.DateTime.ClearSeconds().Subtract(TimeSpan.FromMinutes(offset)), tickTime.Offset);
                     }
                     #endregion
                 }
+                else if (truePeriod.NumberOfSecond >= 15 * 60)
+                {
+                    #region 15分钟
+                    //0-14 15-29 30-44 45-59
+                    int offset = tickTime.DateTime.Minute % 15;
+                    if (offset == 0)
+                    {
+                        return new DateTimeOffset(tickTime.DateTime.ClearSeconds(), tickTime.Offset);
+                    }
+                    else
+                    {
+                        return new DateTimeOffset(tickTime.DateTime.ClearSeconds().Subtract(TimeSpan.FromMinutes(offset)), tickTime.Offset);
+                    }
+                    #endregion
+                }
+                else if (truePeriod.NumberOfSecond >= 5 * 60)
+                {
+                    #region 5分钟
+                    //0-4 5-9 10-14 15-19 20-24 25-29 30-34 ...
+                    int offset = tickTime.DateTime.Minute % 5;
+                    if (offset == 0)
+                    {
+                        return new DateTimeOffset(tickTime.DateTime.ClearSeconds(), tickTime.Offset);
+                    }
+                    else
+                    {
+                        return new DateTimeOffset(tickTime.DateTime.ClearSeconds().Subtract(TimeSpan.FromMinutes(offset)), tickTime.Offset);
+                    }
+                    #endregion
+                }
+                else if (truePeriod.NumberOfSecond >= 60)
+                {
+                    #region 精确到分钟
+                    return new DateTimeOffset(tickTime.DateTime.ClearSeconds(), tickTime.Offset);
+                    #endregion
+                }
+                else if (truePeriod.NumberOfSecond >= 1 && truePeriod.NumberOfSecond < 60)
+                {
+                    #region 精确到秒
+                    return new DateTimeOffset(tickTime.DateTime.TrimSeconds(), tickTime.Offset);
+                    #endregion
+                }
+                #endregion
             }
+            return tickTime;
+        }
+
+        public bool ExistsQueueCandle(DateTimeOffset tickTime, ref MT4Candle candle)
+        {
+            if (myCandleQue.Count() == 0)
+            {
+                return false;
+            }
+            else
+            {
+                if (Period is IntradayPeriodBase)
+                {
+                    #region IntradayPeriod
+                    var truePeriod = (IntradayPeriodBase)Period;
+                    if (truePeriod.NumberOfSecond >= 2 * 60 * 60)
+                    {
+                        #region H2
+                        candle = myCandleQue.LastOrDefault(t =>
+                        {
+                            TimeSpan ts = tickTime.DateTime.ClearSeconds() - t.DateTime.DateTime.ClearSeconds();
+                            double totalSeconds = ts.TotalSeconds;
+                            return totalSeconds >= 0 && totalSeconds < 2 * 60 * 60;
+                        }) as MT4Candle;
+                        #endregion
+                    }
+                    else if (truePeriod.NumberOfSecond >= 60 * 60)
+                    {
+                        #region H1
+                        candle = myCandleQue.LastOrDefault(t =>
+                        {
+                            TimeSpan ts = tickTime.DateTime.ClearSeconds() - t.DateTime.DateTime.ClearSeconds();
+                            double totalSeconds = ts.TotalSeconds;
+                            return totalSeconds >= 0 && totalSeconds < 60 * 60;
+                        }) as MT4Candle;
+                        #endregion
+                    }
+                    else if (truePeriod.NumberOfSecond >= 30 * 60)
+                    {
+                        #region 30分钟
+                        candle = myCandleQue.LastOrDefault(t =>
+                        {
+                            TimeSpan ts = tickTime.DateTime.ClearSeconds() - t.DateTime.DateTime.ClearSeconds();
+                            double totalSeconds = ts.TotalSeconds;
+                            return totalSeconds >= 0 && totalSeconds < 30 * 60;
+                        }) as MT4Candle;
+                        #endregion
+                    }
+                    else if (truePeriod.NumberOfSecond >= 15 * 60)
+                    {
+                        #region 15分钟
+                        candle = myCandleQue.LastOrDefault(t =>
+                        {
+                            TimeSpan ts = tickTime.DateTime.ClearSeconds() - t.DateTime.DateTime.ClearSeconds();
+                            double totalSeconds = ts.TotalSeconds;
+                            return totalSeconds >= 0 && totalSeconds < 15 * 60;
+                        }) as MT4Candle;
+                        #endregion
+                    }
+                    else if (truePeriod.NumberOfSecond >= 5 * 60)
+                    {
+                        #region 5分钟
+                        candle = myCandleQue.LastOrDefault(t =>
+                        {
+                            TimeSpan ts = tickTime.DateTime.ClearSeconds() - t.DateTime.DateTime.ClearSeconds();
+                            double totalSeconds = ts.TotalSeconds;
+                            return totalSeconds >= 0 && totalSeconds < 300;
+                        }) as MT4Candle;
+                        #endregion
+                    }
+                    else if (truePeriod.NumberOfSecond >= 60)
+                    {
+                        #region 精确到分钟
+                        candle = myCandleQue.LastOrDefault(t => t.DateTime.DateTime.ClearSeconds() == tickTime.DateTime.ClearSeconds()) as MT4Candle;
+                        #endregion
+                    }
+                    else if (truePeriod.NumberOfSecond >= 1 && truePeriod.NumberOfSecond < 60)
+                    {
+                        #region 精确到秒
+                        candle = myCandleQue.LastOrDefault(t => t.DateTime.DateTime.TrimSeconds() == tickTime.DateTime.TrimSeconds()) as MT4Candle;
+                        #endregion
+                    }
+                    #endregion
+                }
+                else if (Period is InterdayPeriodBase)
+                {
+
+                }
+                return candle != null;
+            }
+        }
+
+        public int TotalCandle()
+        {
+            return myCandleQue.Count;
         }
 
     }

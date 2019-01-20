@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using ZeroMQ;
 using FixEAStrategy;
+using System.Configuration;
 
 namespace MT4TickDataBackTest
 {
@@ -10,7 +11,7 @@ namespace MT4TickDataBackTest
     {
         static void Main(string[] args)
         {
-
+            bool TickDataSimulation = Convert.ToBoolean(ConfigurationManager.AppSettings["TickDataSimulation"] ?? "true");
             using (var context = ZmqContext.Create())
             {
                 using (var publisher = context.CreateSocket(SocketType.PUB))
@@ -22,7 +23,10 @@ namespace MT4TickDataBackTest
                     Console.WriteLine("Press ctrl+c to exit...");
                     Console.WriteLine();
                     string myFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "XAUUSD_Tick_2019.01.18.dat");
+                    TimeSpan timeOffset = TimeSpan.FromHours(-8.0); //与本地实际相差间隔
 
+                    DateTime lastDisplayTime = DateTime.Parse("1970-01-01 00:00:00");
+                    int tickCount = 0;
                     #region 单个文件发布
                     using (FileStream fs = new FileStream(myFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     {
@@ -36,7 +40,7 @@ namespace MT4TickDataBackTest
                     RateInfo:
 
                         iLongVal = fs.ReadLong(ref bufBytes); //time_msc (8)
-                        nTickTime = iLongVal.ToDateTime();
+                        nTickTime = iLongVal.ToDateTime().Add(timeOffset);
                         iIntVer = fs.ReadInt(ref bufBytes);   //tTick    (4)
                                                               /*
                                                                   The GetTickCount() function returns the number of milliseconds that elapsed since the system start.
@@ -52,19 +56,25 @@ namespace MT4TickDataBackTest
                         };
 
                         string tickTimeWithMs = string.Concat(nTickTime.ToString("yyyy.MM.dd HH:mm:ss"), ",", tms.Substring(tms.Length - 3, 3));
-                        DateTime currentTickTime = DateTime.ParseExact(tickTimeWithMs, "yyyy.MM.dd HH:mm:ss,fff", System.Globalization.CultureInfo.InvariantCulture);
-                        double totalMs = currentTickTime.Subtract(lastTickTime).TotalMilliseconds;
-                        int sleepMs = 0;
-                        if (totalMs > 5.0)
+
+                        #region 真实模拟
+                        if (TickDataSimulation)
                         {
-                            sleepMs = (int)totalMs;
-                            if (lastTickTime.Year != 1970)
-                                System.Threading.Thread.Sleep(sleepMs);
-                            lastTickTime = currentTickTime;
+                            DateTime currentTickTime = DateTime.ParseExact(tickTimeWithMs, "yyyy.MM.dd HH:mm:ss,fff", System.Globalization.CultureInfo.InvariantCulture);
+                            double totalMs = currentTickTime.Subtract(lastTickTime).TotalMilliseconds;
+                            int sleepMs = 0;
+                            if (totalMs > 5.0)
+                            {
+                                sleepMs = (int)totalMs;
+                                if (lastTickTime.Year != 1970)
+                                    System.Threading.Thread.Sleep(sleepMs);
+                                lastTickTime = currentTickTime;
+                            }
                         }
+                        #endregion
 
                         string msg = string.Concat("ICMarkets-Demo03|", "XAUUSD",
-                            "|", "(GMT+2)", tickTimeWithMs,
+                            "|", "(GMT+8)", tickTimeWithMs,
                             "|2|",
                             tick.Bid.ToString("#.##"), ":", tick.Ask.ToString("#.##"), ":",
                             ((tick.Ask - tick.Bid) * 100).ToString("N0"));
@@ -76,11 +86,22 @@ namespace MT4TickDataBackTest
                             Console.WriteLine("\r\n 发布出错：" + status);
                         }
 
-                        string.Concat(msg, " ", ((double)fs.Position / (double)fs.Length).ToString("P2")).ConsoleLineReplace();
+                        if (lastDisplayTime.Year == 1970
+                            || TickDataSimulation == true
+                            || DateTime.Now.Subtract(lastDisplayTime).TotalSeconds > 1
+                            || tickCount > 500)
+                        {
+                            string.Concat(msg, " ", ((double)fs.Position / (double)fs.Length).ToString("P2")).ConsoleLineReplace();
+                            lastDisplayTime = DateTime.Now;
+                            tickCount = 0;
+                        }
+
                         if (fs.Position + 36 < fs.Length - 1)
                         {
+                            tickCount++;
                             goto RateInfo;
                         }
+
                     }
                     #endregion
                 }
