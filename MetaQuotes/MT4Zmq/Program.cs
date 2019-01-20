@@ -3,9 +3,6 @@ using System.Collections.Generic;
 using System.Text;
 using Trady.Core.Period;
 using ZeroMQ;
-using Trady.Analysis.Extension;
-using System.Linq;
-using System.Globalization;
 
 namespace MT4ZmqSingal
 {
@@ -52,6 +49,7 @@ namespace MT4ZmqSingal
 
             #endregion
 
+            //ZmqCmdServerLive();
         }
 
         static void ZmqCandleLive()
@@ -64,7 +62,7 @@ namespace MT4ZmqSingal
                 {
                     string address = "tcp://localhost:5556";
                     subSocket.Connect(address);
-                    Console.WriteLine("Listening on " + address);
+                    Console.WriteLine("Subscrible on " + address);
                     Console.WriteLine();
                     Console.WriteLine("Press ctrl+c to exit...");
                     Console.WriteLine();
@@ -72,8 +70,8 @@ namespace MT4ZmqSingal
                     //ICMarkets-Demo03|XAUUSD|(GMT)2019.01.17 12:53:02|2|1293.98:1294.05:7
                     string prefixString = string.Concat("ICMarkets-Demo03|", candles.Symbol(), "|");
                     byte[] prefixBytes = Encoding.Default.GetBytes(prefixString);
-                    subSocket.Subscribe(prefixBytes);
-                    //subSocket.SubscribeAll();
+                    //subSocket.Subscribe(prefixBytes);
+                    subSocket.SubscribeAll();
 
                     string[] tickArr = new string[0];
                     string[] priceArr = new string[3];
@@ -81,38 +79,85 @@ namespace MT4ZmqSingal
                     string numFmt = "##.##";
                     while (true)
                     {
-                        var message = subSocket.Receive(Encoding.UTF8);
-                        string usefulMsg = message.Substring(prefixString.Length);
-                        //Console.WriteLine(usefulMsg);
+                        #region 循环处理消息
+                        var message = subSocket.Receive(Encoding.Default);
+                        //Console.WriteLine(message);
+                        message.ConsoleLineReplace();
 
-                        tickArr = usefulMsg.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
-                        DateTimeOffset tickTime = new DateTimeOffset(DateTime.Parse(tickArr[0].Replace("(GMT)", "")), TimeSpan.Zero);
+                        //string usefulMsg = message.Substring(prefixString.Length);
 
-                        digits = int.Parse(tickArr[1]);
+                        //tickArr = usefulMsg.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+                        //DateTimeOffset tickTime = new DateTimeOffset(DateTime.Parse(tickArr[0].Replace("(GMT)", "")), TimeSpan.Zero);
 
-                        priceArr = tickArr[2].Split(new char[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
-                        candles.NewTickData(tickTime, decimal.Parse(priceArr[0]), decimal.Parse(priceArr[1]), 0.0m);
+                        //digits = int.Parse(tickArr[1]);
+                        //priceArr = tickArr[2].Split(new char[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
+                        //candles.NewTickData(tickTime, decimal.Parse(priceArr[0]), decimal.Parse(priceArr[1]), 0.0m);
 
-                        int candleCount = candles.Count();
-                        if (candleCount > 5)
+                        //int candleCount = candles.Count();
+                        //if (candleCount >= 5)
+                        //{
+                        //    //var last = candles.Sma(15).Last();
+                        //    ////numFmt = "#." + "".PadLeft(digits, '#');
+                        //    //Console.WriteLine($"{last.DateTime}, {last.Tick.Value.ToString(numFmt)}");
+
+                        //    if (candleCount >= 20)
+                        //    {
+                        //        var bb = candles.Bb(20, 2).Last();
+                        //        Console.WriteLine($"Bands Upper: {bb.Tick.UpperBand.Value.ToString(numFmt)}, Middle: {bb.Tick.MiddleBand.Value.ToString(numFmt)}, Lower: {bb.Tick.LowerBand.Value.ToString(numFmt)}");
+                        //    }
+
+                        //    var sto = candles.FastSto(5, 3).Last();
+                        //    Console.WriteLine($"K: {sto.Tick.K.Value.ToString(numFmt)}, D: {sto.Tick.D.Value.ToString(numFmt)}, J: {sto.Tick.J.Value.ToString(numFmt)}");
+
+                        //    var stoFlow = candles.FastStoOsc(5, 3).Last();
+                        //    var stoSlow = candles.SlowStoOsc(5, 3).Last();
+                        //    Console.WriteLine($"Fast: {stoFlow.Tick.Value.ToString(numFmt)}, Slow: {stoSlow.Tick.Value.ToString(numFmt)}");
+                        //}
+                        //else
+                        //{
+                        //    //(string.Concat(usefulMsg, " (", candleCount, "/M5)")).ConsoleLineReplace();
+                        //    Console.WriteLine(usefulMsg);
+                        //}
+                        #endregion
+                    }
+                }
+            }
+        }
+
+        static void ZmqCmdServerLive()
+        {
+            using (var context = ZmqContext.Create())
+            {
+                using (var svrSocket = context.CreateSocket(SocketType.REQ))
+                {
+                    string address = "tcp://localhost:5555";
+                    svrSocket.Connect(address);
+                    Console.WriteLine("Listening on " + address);
+                    Console.WriteLine();
+                    Console.WriteLine("Press ctrl+c to exit...");
+                    Console.WriteLine();
+                    while (true)
+                    {
+                        string result = string.Empty;
+                        SendStatus status = svrSocket.Send("BBands", Encoding.Default);
+                        if (status == SendStatus.Sent)
                         {
-                            //var last = candles.Sma(15).Last();
-                            ////numFmt = "#." + "".PadLeft(digits, '#');
-                            //Console.WriteLine($"{last.DateTime}, {last.Tick.Value.ToString(numFmt)}");
+                            result = svrSocket.Receive(Encoding.Default);
+                            Console.WriteLine(result);
+                        }
 
-                            if (candleCount > 20)
-                            {
-                                var bb = candles.Bb(20, 2).Last();
-                                Console.WriteLine($"Bands Upper: {bb.Tick.UpperBand.Value.ToString(numFmt)}, Middle: {bb.Tick.MiddleBand.Value.ToString(numFmt)}, Lower: {bb.Tick.LowerBand.Value.ToString(numFmt)}");
-                            }
+                        status = svrSocket.Send("Sto", Encoding.Default);
+                        if (status == SendStatus.Sent)
+                        {
+                            result = svrSocket.Receive(Encoding.Default);
+                            Console.WriteLine(result);
+                        }
 
-                            var sto = candles.FastSto(5, 3).Last();
-                            Console.WriteLine($"K: {sto.Tick.K.Value.ToString(numFmt)}, D: {sto.Tick.D.Value.ToString(numFmt)}, J: {sto.Tick.J.Value.ToString(numFmt)}");
-
-                            var stoFlow = candles.FastStoOsc(5, 3).Last();
-                            var stoSlow = candles.SlowStoOsc(5, 3).Last();
-                            Console.WriteLine($"Fast: {stoFlow.Tick.Value.ToString(numFmt)}, Slow: {stoSlow.Tick.Value.ToString(numFmt)}");
-
+                        status = svrSocket.Send("OHLC", Encoding.Default);
+                        if (status == SendStatus.Sent)
+                        {
+                            result = svrSocket.Receive(Encoding.Default);
+                            Console.WriteLine(result);
                         }
                     }
                 }
