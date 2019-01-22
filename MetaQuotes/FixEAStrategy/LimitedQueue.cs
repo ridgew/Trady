@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -8,8 +9,8 @@ namespace FixEAStrategy
     /// 有限容量，FIFO队列
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    /// <seealso cref="System.Collections.Generic.Queue{T}" />
-    public class LimitedQueue<T> : Queue<T>
+    /// <seealso cref="System.Collections.Generic.ConcurrentQueue{T}" />
+    public class LimitedQueue<T> : ConcurrentQueue<T>
     {
         private const int DefaultMaxItems = 10;
 
@@ -18,7 +19,7 @@ namespace FixEAStrategy
         public LimitedQueue() : this(DefaultMaxItems) { }
 
 
-        public LimitedQueue(int capacity) : base(capacity)
+        public LimitedQueue(int capacity)
         {
             this.MaxItems = capacity;
         }
@@ -50,7 +51,9 @@ namespace FixEAStrategy
         {
             while (this.Count > n)
             {
-                this.Dequeue();
+                T item = default(T);
+                if (!TryDequeue(out item))
+                    return;
             }
         }
 

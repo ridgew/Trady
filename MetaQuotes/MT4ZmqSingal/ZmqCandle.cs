@@ -60,6 +60,7 @@ namespace MT4ZmqSingal
             {
                 TickRate tick = new TickRate { Ask = ask, Bid = bid, TickTime = tickTime.DateTime, Volume = lastVolume };
                 last.MerginTickData(tick);
+                last.LastTickDateTime = tickTime;
             }
         }
 
@@ -175,6 +176,20 @@ namespace MT4ZmqSingal
             return tickTime;
         }
 
+        public double GetPeriodTotalSeconds()
+        {
+            if (Period is IntradayPeriodBase)
+            {
+                var truePeriod = (IntradayPeriodBase)Period;
+                return truePeriod.NumberOfSecond;
+            }
+            else if (Period is InterdayPeriodBase)
+            {
+
+            }
+            return 0.0;
+        }
+
         public bool ExistsQueueCandle(DateTimeOffset tickTime, ref MT4Candle candle)
         {
             if (myCandleQue.Count() == 0)
@@ -275,6 +290,31 @@ namespace MT4ZmqSingal
             }
         }
 
+        public double NewBarPercent(bool useNow = false)
+        {
+            if (myCandleQue.Count > 0)
+            {
+                MT4Candle last = myCandleQue.Last() as MT4Candle;
+                if (useNow)
+                {
+                    DateTimeOffset nowCmp = new DateTimeOffset(DateTime.UtcNow, TimeSpan.Zero);
+                    return nowCmp.Subtract(last.DateTime).TotalSeconds / GetPeriodTotalSeconds();
+                }
+                else
+                {
+                    return last.LastTickDateTime.Subtract(last.DateTime).TotalSeconds / GetPeriodTotalSeconds();
+                }
+            }
+            return 0.00;
+        }
+
+        public IEnumerable<MT4Candle> LastNCandles(int total)
+        {
+            int totalCount = myCandleQue.Count;
+            int takeCount = Math.Min(total, totalCount);
+            return myCandleQue.Skip(totalCount - takeCount).Take(takeCount).Select(s => (MT4Candle)s);
+        }
+
         public int TotalCandle()
         {
             return myCandleQue.Count;
@@ -282,14 +322,44 @@ namespace MT4ZmqSingal
 
     }
 
-    [DebuggerDisplay("Time:{DateTime} Open:{Open} Close:{Close} High:{High} Low:{Close} Volume:{Volume}")]
+    [DebuggerDisplay("{ToString()}")]
     public class MT4Candle : Candle
     {
         public MT4Candle(DateTimeOffset dateTime, decimal open, decimal high, decimal low, decimal close, decimal volume)
             : base(dateTime, open, high, low, close, volume)
         {
-
+            LastTickDateTime = dateTime;
         }
+
+        public DateTimeOffset LastTickDateTime { get; set; }
+
+        public override string ToString()
+        {
+            return string.Format("T:{0}, O:{1} H:{2} L:{3} C:{4} V:{5}", DateTime, Open, High, Low, Close, Volume);
+        }
+
+        public int TotalRange(int digits)
+        {
+            return digits.OffSetPoints(Low, High);
+        }
+
+        public int NoShadowRange(int digits)
+        {
+            return digits.OffSetPoints(Open, Close);
+        }
+
+        public int UpShadowRange(int digits)
+        {
+            decimal higher = Math.Max(Open, Close);
+            return digits.OffSetPoints(higher, High);
+        }
+
+        public int DownShadowRange(int digits)
+        {
+            decimal lower = Math.Min(Open, Close);
+            return digits.OffSetPoints(lower, High);
+        }
+
     }
 
 }

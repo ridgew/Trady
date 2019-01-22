@@ -1,9 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Trady.Core;
 
 namespace MT4ZmqSingal
@@ -26,6 +21,13 @@ namespace MT4ZmqSingal
             candle.Low = Math.Min(candle.Low, myPrice);
             candle.Volume += 1;
             return candle;
+        }
+
+        public static int OffSetPoints(this int digits, decimal priceLow, decimal priceHigh)
+        {
+            string appendFmt = "".PadLeft(digits, '#');
+            string offSetStr = (priceHigh - priceLow).ToString("#." + appendFmt);
+            return int.Parse(offSetStr.Replace(".", ""));
         }
     }
 }
