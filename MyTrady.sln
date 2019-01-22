@@ -29,6 +29,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "json", "json", "{732D626E-F
 	ProjectSection(SolutionItems) = preProject
 		D:\Dev\MT4EA\MT4\MQL4\Include\datacollector.mqh = D:\Dev\MT4EA\MT4\MQL4\Include\datacollector.mqh
 		D:\Dev\MT4EA\MT4\MQL4\Include\hash.mqh = D:\Dev\MT4EA\MT4\MQL4\Include\hash.mqh
+		D:\Dev\MT4EA\MT4\MQL4\Include\JAson.mqh = D:\Dev\MT4EA\MT4\MQL4\Include\JAson.mqh
 		D:\Dev\MT4EA\MT4\MQL4\Include\json.mqh = D:\Dev\MT4EA\MT4\MQL4\Include\json.mqh
 		D:\Dev\MT4EA\MT4\MQL4\Experts\MtApi.mq4 = D:\Dev\MT4EA\MT4\MQL4\Experts\MtApi.mq4
 	EndProjectSection
@@ -37,7 +38,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MT4TickDataBackTest", "Meta
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MT4ZmqSingal", "MetaQuotes\MT4ZmqSingal\MT4ZmqSingal.csproj", "{BD97D6CB-5133-41F8-B303-4DFF180D566F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FixEAStrategy", "MetaQuotes\FixEAStrategy\FixEAStrategy.csproj", "{8407236F-1FA6-4D45-A74D-CC9EE6E74639}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FixEAStrategy", "MetaQuotes\FixEAStrategy\FixEAStrategy.csproj", "{8407236F-1FA6-4D45-A74D-CC9EE6E74639}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

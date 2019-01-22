@@ -17,10 +17,18 @@ namespace MT4ZmqSingal
         {
             _symbol = symbol;
             Period = period;
+            myCandleQue = new LimitedQueue<IOhlcv>(65535);
+        }
+
+        public ZmqCandle(string symbol, PeriodBase period, int queueSize)
+        {
+            _symbol = symbol;
+            Period = period;
+            myCandleQue = new LimitedQueue<IOhlcv>(queueSize);
         }
 
         string _symbol = null;
-        LimitedQueue<IOhlcv> myCandleQue = new LimitedQueue<IOhlcv>(65535);
+        LimitedQueue<IOhlcv> myCandleQue;
 
         public string Symbol()
         {
@@ -69,10 +77,34 @@ namespace MT4ZmqSingal
             {
                 #region IntradayPeriod
                 var truePeriod = (IntradayPeriodBase)Period;
-                if (truePeriod.NumberOfSecond >= 2 * 60 * 60)
+                if (truePeriod.NumberOfSecond >= 4 * 60 * 60)
+                {
+                    #region H4
+                    //01 05 09
+                    int offset = tickTime.DateTime.Hour % 4;
+                    if (offset == 0)
+                    {
+                        return new DateTimeOffset(tickTime.DateTime.ClearMinutes().Subtract(TimeSpan.FromHours(3.0)), tickTime.Offset);
+                    }
+                    else
+                    {
+                        return new DateTimeOffset(tickTime.DateTime.ClearMinutes().Subtract(TimeSpan.FromHours(offset - 1)), tickTime.Offset);
+                    }
+                    #endregion
+                }
+                else if (truePeriod.NumberOfSecond >= 2 * 60 * 60)
                 {
                     #region H2
                     //01 03 05
+                    int offset = tickTime.DateTime.Hour % 2;
+                    if (offset == 0)
+                    {
+                        return new DateTimeOffset(tickTime.DateTime.ClearMinutes().Subtract(TimeSpan.FromHours(1.0)), tickTime.Offset);
+                    }
+                    else
+                    {
+                        return new DateTimeOffset(tickTime.DateTime.ClearMinutes(), tickTime.Offset);
+                    }
                     #endregion
                 }
                 else if (truePeriod.NumberOfSecond >= 60 * 60)
@@ -155,7 +187,18 @@ namespace MT4ZmqSingal
                 {
                     #region IntradayPeriod
                     var truePeriod = (IntradayPeriodBase)Period;
-                    if (truePeriod.NumberOfSecond >= 2 * 60 * 60)
+                    if (truePeriod.NumberOfSecond >= 4 * 60 * 60)
+                    {
+                        #region H4
+                        candle = myCandleQue.LastOrDefault(t =>
+                        {
+                            TimeSpan ts = tickTime.DateTime.ClearSeconds() - t.DateTime.DateTime.ClearSeconds();
+                            double totalSeconds = ts.TotalSeconds;
+                            return totalSeconds >= 0 && totalSeconds < 4 * 60 * 60;
+                        }) as MT4Candle;
+                        #endregion
+                    }
+                    else if (truePeriod.NumberOfSecond >= 2 * 60 * 60)
                     {
                         #region H2
                         candle = myCandleQue.LastOrDefault(t =>

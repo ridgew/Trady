@@ -65,7 +65,9 @@ namespace MT4ZmqSingal
             ZmqCandle M5Candles = new ZmqCandle("XAUUSD", new Per5Minute());
             ZmqCandle M15Candles = new ZmqCandle("XAUUSD", new Per15Minute());
             ZmqCandle M30Candles = new ZmqCandle("XAUUSD", new Per30Minute());
-            ZmqCandle H1Candles = new ZmqCandle("XAUUSD", new Hourly());
+            ZmqCandle H1Candles = new ZmqCandle("XAUUSD", new Hourly(), 1000);
+            ZmqCandle H4Candles = new ZmqCandle("XAUUSD", new FourHourly(), 100);
+
             using (var context = ZmqContext.Create())
             {
                 using (var subSocket = context.CreateSocket(SocketType.SUB))
@@ -98,7 +100,11 @@ namespace MT4ZmqSingal
 
                         tickArr = usefulMsg.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
                         string rightTickStr = Regex.Replace(tickArr[0], "\\(GMT([+-]\\d{1,2})*\\)", "");
-                        DateTimeOffset tickTime = new DateTimeOffset(DateTime.ParseExact(rightTickStr, "yyyy.MM.dd HH:mm:ss,fff", CultureInfo.InvariantCulture), TimeSpan.FromHours(2.0));
+                        DateTimeOffset tickTime = new DateTimeOffset(DateTime.ParseExact(rightTickStr,
+                              (rightTickStr.Contains(",") ? "yyyy.MM.dd HH:mm:ss,fff" : "yyyy.MM.dd HH:mm:ss"),
+                              CultureInfo.InvariantCulture),
+                              (message.Contains("(GMT)") ? TimeSpan.Zero : TimeSpan.FromHours(2.0))
+                            );
 
                         digits = int.Parse(tickArr[1]);
                         priceArr = tickArr[2].Split(new char[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
@@ -108,6 +114,7 @@ namespace MT4ZmqSingal
                         M15Candles.NewTickData(tickTime, decimal.Parse(priceArr[0]), decimal.Parse(priceArr[1]), 0.0m);
                         M30Candles.NewTickData(tickTime, decimal.Parse(priceArr[0]), decimal.Parse(priceArr[1]), 0.0m);
                         H1Candles.NewTickData(tickTime, decimal.Parse(priceArr[0]), decimal.Parse(priceArr[1]), 0.0m);
+                        H4Candles.NewTickData(tickTime, decimal.Parse(priceArr[0]), decimal.Parse(priceArr[1]), 0.0m);
 
                         int candleCount = M1Candles.Count();
                         if (candleCount >= 5)
@@ -148,33 +155,49 @@ namespace MT4ZmqSingal
                 {
                     string address = "tcp://localhost:5555";
                     svrSocket.Connect(address);
-                    Console.WriteLine("Listening on " + address);
+                    Console.WriteLine("Connecting on " + address);
                     Console.WriteLine();
                     Console.WriteLine("Press ctrl+c to exit...");
                     Console.WriteLine();
                     while (true)
                     {
                         string result = string.Empty;
-                        SendStatus status = svrSocket.Send("BBands", Encoding.Default);
+                        string jsonCommand = "MT-TA {\"Fn\":\"iBands\", \"Period\":\"M1\", \"BarShift\":3, \"Symbol\":\"XAUUSD\"}";
+                        //jsonCommand = "MT-TA {\"Fn\":\"iStochastic\", \"Period\":\"M1\", \"BarShift\":3, \"Symbol\":\"XAUUSD\"}";
+                        //jsonCommand = "MT-TA {\"Fn\":\"OHLC\", \"Period\":\"M5\", \"BarShift\":3, \"Symbol\":\"EURUSD\"}";
+                        jsonCommand = "MT-ORDER {\"Pool\":1}";
+                        //jsonCommand = "MT-ORDER {\"Pool\":1, \"Index\":116248227, \"Select\":1 }";
+                        SendStatus status = svrSocket.Send(jsonCommand, Encoding.Default);
                         if (status == SendStatus.Sent)
                         {
-                            result = svrSocket.Receive(Encoding.Default);
+                            result = svrSocket.Receive(Encoding.UTF8);
                             Console.WriteLine(result);
+
+                            //ZmqMessage msg = svrSocket.ReceiveMessage();
+                            //if (msg.IsComplete)
+                            //{
+                            //    foreach (var frame in msg)
+                            //    {
+                            //        byte[] buffer = (byte[])frame;
+                            //        string str = Encoding.UTF8.GetString(buffer);
+                            //    }
+                            //}
+
                         }
 
-                        status = svrSocket.Send("Sto", Encoding.Default);
-                        if (status == SendStatus.Sent)
-                        {
-                            result = svrSocket.Receive(Encoding.Default);
-                            Console.WriteLine(result);
-                        }
+                        //status = svrSocket.Send("Sto", Encoding.Default);
+                        //if (status == SendStatus.Sent)
+                        //{
+                        //    result = svrSocket.Receive(Encoding.Default);
+                        //    Console.WriteLine(result);
+                        //}
 
-                        status = svrSocket.Send("OHLC", Encoding.Default);
-                        if (status == SendStatus.Sent)
-                        {
-                            result = svrSocket.Receive(Encoding.Default);
-                            Console.WriteLine(result);
-                        }
+                        //status = svrSocket.Send("OHLC", Encoding.Default);
+                        //if (status == SendStatus.Sent)
+                        //{
+                        //    result = svrSocket.Receive(Encoding.Default);
+                        //    Console.WriteLine(result);
+                        //}
                     }
                 }
             }
